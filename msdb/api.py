@@ -64,21 +64,23 @@ class APIClient:
 
     def get_database(self):
         """Retrieve the database of chemicals compounds."""
-        return self._make_get_request("chemicals_compounds/chemical_cards/")
+        return self._make_get_request("chemicals_compounds/database/")
 
     def get_compound_by_id(self, id):
         """Retrieve a compound by its ID."""
-        return self._make_get_request(f"chemicals_compounds/chemicals_compounds/{id}/")
+        return self._make_get_request(f"chemicals_compounds/database/{id}/")
     
-    def _format(self,value):
-        if isinstance(value, str):
+    def _format(self, value):
+        if isinstance(value, dict):
+            return value # Skip dictionaries by returning None
+        elif isinstance(value, str):
             return value  # Do nothing for strings
         elif isinstance(value, float):
             return str(value)  # Convert float to string
         elif isinstance(value, (np.float64, float)) and math.isnan(value):
             return None  # Return None for NaN
         else:
-            return None  # Handle any other unexpected types
+            return None
 
         # return None if math.isnan(np.round(value, 4)) else str(np.round(value, 4))
     def _tmp_fix(self,dict):
@@ -106,20 +108,29 @@ class APIClient:
                             'reduction_reaction',
                             'oxidation_reaction',
                             'reduction_limit_corrected',
-                            'oxidation_limit_corrected'
+                            'oxidation_limit_corrected',
+                            'data',
+                            'siman_obj',
                         }
         self.default_data = dict.fromkeys(self.valid_keys, None)
-        return {k: input_dict[k] if k in input_dict else None for k in self.default_data.keys()}
+        # print(input_dict)
+        out={}
+        for k in self.default_data.keys():
+            out[k]=input_dict.get(k, None)
+        # print(out)
+
+        return out
         
 
-    def post_structure(self, data={}):
+    def post_structure(self, data={},extra={}):
         data=self._check_fields(input_dict=data)
         for k,v in data.items():
             data[k]=self._format(v)
     
         data=self._tmp_fix(data)     
+        # print(data)
         """Upload a chemical structure."""
-         # Default to an empty dictionary if not provided
+        #  Default to an empty dictionary if not provided
         if mp_id:=data.get('mp_id'):
             data['matproject_id']=mp_id
             response = requests.post(
@@ -134,7 +145,8 @@ class APIClient:
                     f"{self.base_url}/chemicals_compounds/chemical_cards/",
                     headers=self.headers,
                     data=data,
-                    files=files
+                    files=files,
+                    json=extra,
                 )
             
         if response.status_code == 201:  # HTTP status code for created

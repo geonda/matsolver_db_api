@@ -23,7 +23,7 @@ setup(
     install_requires=[
         "requests",  # List your project's dependencies here
         "numpy",
-        "json",
+        "simplejson",
 
         # Add other dependencies as needed
     ],
