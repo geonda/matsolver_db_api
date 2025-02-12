@@ -19,4 +19,4 @@ materials = client.get_database()
 import json
 print(json.dumps(materials, indent=4))
 ```
-For more see ```examples.ipynb```
+For more see ```usage.ipynb```
