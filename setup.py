@@ -23,6 +23,7 @@ setup(
     install_requires=[
         "requests",  # List your project's dependencies here
         "numpy",
+        'jsonpickle'
         "simplejson",
 
         # Add other dependencies as needed
