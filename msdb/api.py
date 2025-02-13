@@ -2,6 +2,7 @@ import json
 import requests
 import math
 import numpy as np
+import jsonpickle
 
 class APIClient:
     def __init__(self, base_url='http://10.30.16.179/api/', token=None):
@@ -9,7 +10,7 @@ class APIClient:
         self.password = None
         self.access_token = token
         self.base_url = base_url
-        self.headers = {}
+        self.headers = {"Authorization": f"JWT {self.access_token}"}
 
     def get_token(self, username=None, password=None):
         if username and password:
@@ -68,7 +69,7 @@ class APIClient:
 
     def get_compound_by_id(self, id):
         """Retrieve a compound by its ID."""
-        return self._make_get_request(f"chemicals_compounds/database/{id}/")
+        return self._make_get_request(f"chemicals_compounds/chemicals_compounds/{id}/")
     
     def _format(self, value):
         if isinstance(value, dict):
@@ -111,6 +112,7 @@ class APIClient:
                             'oxidation_limit_corrected',
                             'data',
                             'siman_obj',
+                            '_tags'
                         }
         self.default_data = dict.fromkeys(self.valid_keys, None)
         # print(input_dict)
@@ -122,8 +124,9 @@ class APIClient:
         return out
         
 
-    def post_structure(self, data={},extra={}):
+    def post_structure(self, data={},extra_info=None):
         data=self._check_fields(input_dict=data)
+        extra_info = json.dumps(extra_info) if extra_info else None
         for k,v in data.items():
             data[k]=self._format(v)
     
@@ -144,9 +147,8 @@ class APIClient:
                 response = requests.post(
                     f"{self.base_url}/chemicals_compounds/chemical_cards/",
                     headers=self.headers,
-                    data=data,
+                    data={**data,**dict(extra_info=extra_info)},
                     files=files,
-                    json=extra,
                 )
             
         if response.status_code == 201:  # HTTP status code for created
@@ -156,3 +158,91 @@ class APIClient:
         
         return response.status_code
 
+
+
+    def handle_siman(self, calc_obj=None, file=None, extra_info=None, main_info=None):
+        """Uploads a chemical structure."""
+
+        main_info = self._check_fields(input_dict=main_info)
+        for k, v in main_info.items():
+            main_info[k] = self._format(v)
+        main_info = self._tmp_fix(main_info)
+
+        # Serialize extra_info to JSON if it exists
+        extra_info = json.dumps(extra_info) if extra_info else None
+
+        # Serialize calc_obj to JSON using jsonpickle if it exists
+        calc_obj = jsonpickle.encode(calc_obj) if calc_obj else None
+
+        data = {} # Initialize data dictionary
+
+    
+        data = {**main_info, **dict(extra_info=extra_info, siman_calc=calc_obj)}
+
+        print("Data being sent to API:", data)  # Debugging
+
+        try:
+            # Make API request
+            if file:
+                
+                with open(file, 'rb') as f:
+                    files = {'file': (f.name, f)}
+                    response = requests.post(
+                        f"{self.base_url}/chemicals_compounds/chemical_cards/",
+                        headers=self.headers,
+                        data=data,
+                        files=files
+                    )
+            response.raise_for_status()
+            # Process successful response
+            print("Chemical card created successfully:", json.dumps(response.json(), indent=4))
+
+        except requests.exceptions.RequestException as e:
+            # Handle request errors
+            print(f"Failed to create chemical card: {e}")
+            if response is not None:  # Check if response is defined
+                print(f"Status Code: {response.status_code}, Response Text: {response.text}")
+            else:
+                print("No response received from the server.")
+            return None # Return None to indicate failure
+
+        return response.status_code
+    
+    def get_siman_calc_obj(self, chemical_card_id):
+        """
+        Retrieves the 'siman_obj' data from a chemical card by its ID.
+        Assumes the API endpoint returns the entire chemical card data.
+
+        Args:
+            chemical_card_id: The ID of the chemical card to retrieve.
+
+        Returns:
+            The unpickled 'siman_obj' if successful, None otherwise.
+        """
+        try:
+            response = requests.get(
+                f"{self.base_url}/chemicals_compounds/chemical_cards/{chemical_card_id}/",  # Adjust endpoint if needed
+                headers=self.headers,
+            )
+            response.raise_for_status()
+
+            card_data = response.json()
+            siman_obj_encoded = card_data['provided'].get('siman_calc')
+
+            if siman_obj_encoded:
+                # Decode JSON, then unpickle the object
+                siman_obj = jsonpickle.decode(siman_obj_encoded)  #Unpickle it after it has been retrieved from JSON.
+                return siman_obj
+            else:
+                print(f"No 'siman_calc' found for chemical card ID: {chemical_card_id}")
+                return card_data
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error retrieving chemical card: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON response: {e}")
+            return None
+        except Exception as e:
+            print(f"Error unpickling siman_obj: {e}")  # Specific exception for unpickling
+            return None
