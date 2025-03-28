@@ -11,6 +11,30 @@ class APIClient:
         self.access_token = token
         self.base_url = base_url
         self.headers = {"Authorization": f"JWT {self.access_token}"}
+        self.valid_keys = {
+                            'file',
+                            'total_energy_per_atom',
+                            'mp_id',
+                            'E_1D',
+                            'E_2D',
+                            'E_3D',
+                            'band_gap',
+                            'band_gap_mlhse',
+                            'band_gap_mlexp',
+                            'band_gap_exp',
+                            'e_above_hull',
+                            'reduction_limit',
+                            'oxidation_limit',
+                            'reduction_reaction',
+                            'oxidation_reaction',
+                            'reduction_limit_corrected',
+                            'oxidation_limit_corrected',
+                            'data',
+                            'siman_obj',
+                            'shared',
+                            'tag',
+                        }
+        self.default_data = dict.fromkeys(self.valid_keys, None)
 
     def get_token(self, username=None, password=None):
         if username and password:
@@ -78,8 +102,10 @@ class APIClient:
             return value  # Do nothing for strings
         elif isinstance(value, float):
             return str(value)  # Convert float to string
-        elif isinstance(value, (np.float64, float)) and math.isnan(value):
-            return None  # Return None for NaN
+        # elif isinstance(value, (np.float64, float)) and math.isnan(value):
+        #     return None  # Return None for NaN
+        elif isinstance(value, bool):
+            return value
         else:
             return None
 
@@ -92,33 +118,14 @@ class APIClient:
         return dict
     
     def _check_fields(self,input_dict=None, ):
-        self.valid_keys = {
-                            'file',
-                            'total_energy_per_atom',
-                            'mp_id',
-                            'E_1D',
-                            'E_2D',
-                            'E_3D',
-                            'band_gap',
-                            'band_gap_mlhse',
-                            'band_gap_mlexp',
-                            'band_gap_exp',
-                            'e_above_hull',
-                            'reduction_limit',
-                            'oxidation_limit',
-                            'reduction_reaction',
-                            'oxidation_reaction',
-                            'reduction_limit_corrected',
-                            'oxidation_limit_corrected',
-                            'data',
-                            'siman_obj',
-                            '_tags'
-                        }
-        self.default_data = dict.fromkeys(self.valid_keys, None)
         # print(input_dict)
         out={}
         for k in self.default_data.keys():
-            out[k]=input_dict.get(k, None)
+            if 'shared' in k:
+                 out[k]=input_dict.get(k, False)
+            else:
+                out[k]=input_dict.get(k, None)
+
         # print(out)
 
         return out
@@ -152,7 +159,7 @@ class APIClient:
                 )
             
         if response.status_code == 201:  # HTTP status code for created
-            print("Chemical card created successfully:", json.dumps(response.json(), indent=4))
+            print("Chemical card created successfully")
         else:
             print("Failed to create chemical card:", response.status_code, response.text)
         
@@ -162,12 +169,13 @@ class APIClient:
 
     def handle_siman(self, calc_obj=None, file=None, extra_info=None, main_info=None):
         """Uploads a chemical structure."""
-
+        # if main_info:
+        if not main_info:
+            main_info=self.default_data
         main_info = self._check_fields(input_dict=main_info)
         for k, v in main_info.items():
             main_info[k] = self._format(v)
         main_info = self._tmp_fix(main_info)
-
         # Serialize extra_info to JSON if it exists
         extra_info = json.dumps(extra_info) if extra_info else None
 
@@ -175,11 +183,10 @@ class APIClient:
         calc_obj = jsonpickle.encode(calc_obj) if calc_obj else None
 
         data = {} # Initialize data dictionary
-
-    
+        # main_info['shared']=True
         data = {**main_info, **dict(extra_info=extra_info, siman_calc=calc_obj)}
 
-        print("Data being sent to API:", data)  # Debugging
+        print("Data being sent to API")  # Debugging
 
         try:
             # Make API request
@@ -195,7 +202,7 @@ class APIClient:
                     )
             response.raise_for_status()
             # Process successful response
-            print("Chemical card created successfully:", json.dumps(response.json(), indent=4))
+            print("Chemical card created successfully with ID",json.loads(response.text)['id'] )
 
         except requests.exceptions.RequestException as e:
             # Handle request errors
@@ -206,9 +213,9 @@ class APIClient:
                 print("No response received from the server.")
             return None # Return None to indicate failure
 
-        return response.status_code
+        return #response.status_code
     
-    def get_siman_calc_obj(self, chemical_card_id):
+    def get_siman_calc_obj(self, chemical_card_id=None):
         """
         Retrieves the 'siman_obj' data from a chemical card by its ID.
         Assumes the API endpoint returns the entire chemical card data.
@@ -218,7 +225,9 @@ class APIClient:
 
         Returns:
             The unpickled 'siman_obj' if successful, None otherwise.
+
         """
+        if not chemical_card_id: return None
         try:
             response = requests.get(
                 f"{self.base_url}/chemicals_compounds/chemical_cards/{chemical_card_id}/",  # Adjust endpoint if needed
