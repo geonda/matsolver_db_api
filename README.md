@@ -10,7 +10,7 @@ cd matsolver_db_api
 python setup.py install 
 ````
 
-# Alternatively use poetry to install package&dependences
+###### Alternatively use poetry to install package&dependences
 inside the package folder with poetry.lock file
 ```
 poetry install 
