@@ -7,7 +7,7 @@ with open("README.md", "r") as fh:
 setup(
     name="matsolver_db_api",  # Replace with your project's name
     version="0.1.0a",  # Replace with your project's version
-    author="Andrey Geondzhiam",  # Replace with your name
+    author="Andrey Geondzhian",  # Replace with your name
     author_email="a.geondzhian@gmail.com",  # Replace with your email
     description="API client for matsolver database",  # Short description
     long_description=long_description,  # Long description from README
